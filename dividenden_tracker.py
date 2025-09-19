@@ -4,74 +4,120 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from forex_python.converter import CurrencyRates
 
-st.title("📊 Dividenden Tracker")
+st.set_page_config(page_title="📊 Dividenden Tracker", layout="wide")
+st.title("📊 Dividenden Tracker (robustere Berechnung + Debug)")
 
-# Währungsumrechnung
 c = CurrencyRates()
 
-# Portfolio laden
-st.sidebar.header("📁 Portfolio-Auswahl")
-portfolio_file = st.sidebar.text_input("Dateiname (z. B. Demo.csv)", "Demo.csv")
+# Einstellungen
+st.sidebar.header("Einstellungen")
+portfolio_file = st.sidebar.text_input("Dateiname (z. B. Demo.csv)", "MeinPortfolio.csv")
+debug = st.sidebar.checkbox("Debugmodus anzeigen (mehr Infos pro Ticker)", value=False)
 
+# Portfolio laden
 try:
     df = pd.read_csv(f"portfolios/{portfolio_file}")
     st.sidebar.success(f"Portfolio '{portfolio_file}' geladen ✅")
 except FileNotFoundError:
-    st.error("⚠️ Portfolio-Datei nicht gefunden!")
+    st.error("⚠️ Portfolio-Datei nicht gefunden! Bitte portfolios/<Datei>.csv prüfen.")
     st.stop()
 
 results = []
-total_dividends = 0.0
+details = []   # für Debug-Tabelle
+total_net_eur = 0.0
 
 for _, row in df.iterrows():
-    symbol = row["Symbol"]
-    shares = row["Anzahl"]
-    tax = row["Steuersatz"]
+    symbol = str(row["Symbol"]).strip()
+    shares = float(row["Anzahl"])
+    tax = float(row["Steuersatz"])
 
     try:
         stock = yf.Ticker(symbol)
         info = stock.info
 
-        dividends = stock.dividends
-        if dividends.empty:
-            continue
-
-        last_div = dividends[-1]
+        # Roh-Dividendenserie (index: Timestamp), kann leer sein
+        divs = stock.dividends  # pd.Series
         currency = info.get("currency", "USD")
 
-        annual_div = last_div * 4
-        gross_div = annual_div * shares
-        net_div = gross_div * (1 - tax / 100)
-
+        # FX-Rate (fallback = 1.0)
         try:
-            net_div_eur = c.convert(currency, "EUR", net_div)
-        except:
-            net_div_eur = net_div
+            fx_rate = c.get_rate(currency, "EUR") if currency else 1.0
+            fx_ok = True
+        except Exception:
+            fx_rate = 1.0
+            fx_ok = False
 
-        # Wichtig: Nur bei Netto eine reine Zahl speichern
-        results.append([
-            symbol,
-            shares,
-            f"{gross_div:.2f} {currency}",
-            round(net_div_eur, 2)
-        ])
-        total_dividends += net_div_eur
+        # --- Jahresberechnung: SUMME der letzten 12 Monate (robuster) ---
+        if not divs.empty:
+            one_year_ago = pd.Timestamp.now() - pd.DateOffset(days=365)
+            divs_12m = divs[divs.index >= one_year_ago]
+            if not divs_12m.empty:
+                annual_div_per_share = divs_12m.sum()
+                source = "sum(12M)"
+            else:
+                # Fallback: letzte 4 Zahlungen, sonst Mittelwert hochgerechnet
+                if len(divs) >= 4:
+                    annual_div_per_share = divs.tail(4).sum()
+                    source = "sum(last4)"
+                else:
+                    avg = divs.mean() if len(divs) > 0 else 0.0
+                    annual_div_per_share = avg * 4
+                    source = "avg*4 (fallback)"
+        else:
+            annual_div_per_share = 0.0
+            source = "no_divs"
+
+        # Brutto / Netto / Umrechnung
+        gross_annual = annual_div_per_share * shares * fx_rate  # in EUR (wenn fx ok)
+        net_annual = gross_annual * (1 - tax / 100)
+
+        # Sammle Ergebnisse (Netto als reine Zahl!)
+        results.append({
+            "Symbol": symbol,
+            "Anzahl": shares,
+            "Brutto (orig)": round(annual_div_per_share * shares, 6),  # in original currency
+            "Währung": currency,
+            "FX_rate": round(fx_rate, 6),
+            "Brutto (EUR)": round(gross_annual, 2),
+            "Netto (EUR)": round(net_annual, 2),
+            "Berechnungsquelle": source
+        })
+        total_net_eur += net_annual
+
+        # Detail für Debug
+        if debug:
+            divs_preview = divs.tail(8).apply(lambda x: round(x,6)).to_dict()
+            details.append({
+                "Symbol": symbol,
+                "divs_last_values": divs_preview,
+                "annual_div_per_share": float(annual_div_per_share),
+                "currency": currency,
+                "fx_ok": fx_ok,
+                "fx_rate": fx_rate,
+                "source": source
+            })
 
     except Exception as e:
-        st.warning(f"⚠️ Fehler bei {symbol}: {e}")
+        st.warning(f"Fehler beim Ticker {symbol}: {e}")
+        # weiterhin weitermachen
 
+# Ausgabe
 if results:
+    res_df = pd.DataFrame(results)
     st.subheader("📋 Übersicht")
-    df_results = pd.DataFrame(results, columns=["Symbol", "Anzahl", "Brutto Dividende", "Netto (EUR)"])
-    st.dataframe(df_results)
+    st.dataframe(res_df.style.format({"Brutto (orig)": "{:.4f}", "Brutto (EUR)": "{:.2f}", "Netto (EUR)": "{:.2f}"}))
 
     st.subheader("💶 Gesamte Netto-Dividenden (12 Monate Prognose)")
-    st.success(f"≈ {total_dividends:.2f} EUR")
+    st.success(f"≈ {total_net_eur:.2f} EUR")
 
-    st.subheader("📈 Verteilung nach Aktie")
+    st.subheader("📈 Verteilung nach Aktie (Netto EUR)")
     fig, ax = plt.subplots()
-    ax.bar(df_results["Symbol"], df_results["Netto (EUR)"])
-    ax.set_ylabel("Dividenden in EUR")
+    ax.bar(res_df["Symbol"], res_df["Netto (EUR)"])
+    ax.set_ylabel("Netto (EUR)")
     st.pyplot(fig)
+
+    if debug and details:
+        st.subheader("🔍 Debug-Details pro Ticker (Rohdaten)")
+        st.write(pd.DataFrame(details))
 else:
-    st.warning("Keine Dividenden gefunden.")
+    st.warning("Keine Dividendendaten gefunden. Prüfe Ticker und CSV.")
