@@ -1,1 +1,0 @@
-# Dividenden-Tracker
