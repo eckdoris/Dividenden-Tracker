@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import os
 import requests
 
-st.set_page_config(page_title="📈 Dividenden Tracker", layout="wide")
+st.set_page_config(page_title="📈 dividenden-tracker", layout="wide")
 
 # --- Portfolio laden ---
 PORTFOLIO_FILE = "portfolio.csv"
