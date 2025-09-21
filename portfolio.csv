@@ -1,8 +1,18 @@
-Ticker,Stueckzahl,Monat,Dividende
-JEN.DE,12,3,25.00
-SBUX,50,6,15.00
-SBUX,50,9,15.00
-SBUX,50,12,15.00
-O,30,1,6.00
-O,30,2,6.00
-O,30,3,6.00
+Aktie,Stückzahl,Monat,Jahr,Dividende
+Jenoptik,100,März,2024,0.30
+Starbucks,50,Februar,2024,0.55
+Starbucks,50,Mai,2024,0.55
+Starbucks,50,August,2024,0.55
+Starbucks,50,November,2024,0.55
+Realty Income,20,Januar,2024,0.25
+Realty Income,20,Februar,2024,0.25
+Realty Income,20,März,2024,0.25
+Realty Income,20,April,2024,0.25
+Realty Income,20,Mai,2024,0.25
+Realty Income,20,Juni,2024,0.25
+Realty Income,20,Juli,2024,0.25
+Realty Income,20,August,2024,0.25
+Realty Income,20,September,2024,0.25
+Realty Income,20,Oktober,2024,0.25
+Realty Income,20,November,2024,0.25
+Realty Income,20,Dezember,2024,0.25
