@@ -8,7 +8,7 @@ st.set_page_config(page_title="Dividenden Tracker", layout="wide")
 
 st.title("📈 Dividenden Tracker – Portfolio")
 
-# Portfolio-Datei automatisch laden
+# Portfolio-Datei
 portfolio_file = "portfolio.csv"
 
 if os.path.exists(portfolio_file):
@@ -45,11 +45,10 @@ if os.path.exists(portfolio_file):
             jaehrlich = df.groupby("Jahr")["Gesamt"].sum().reset_index()
             jahr_data.append(jaehrlich.assign(Ticker=ticker))
 
-            # Prognose: Summe letzte 12 Monate * 1 Jahr
+            # Prognose: letzte 12 Monate hochgerechnet
             letzte_12m = df[df["Datum"] > (pd.Timestamp.today() - pd.DateOffset(months=12))]
             prognose = letzte_12m["Gesamt"].sum()
             prognose_data.append({"Ticker": ticker, "Prognose nächstes Jahr": prognose})
-
         else:
             st.warning(f"⚠️ Keine Dividenden-Daten für {ticker} gefunden.")
 
@@ -71,6 +70,5 @@ if os.path.exists(portfolio_file):
             prognose_df = pd.DataFrame(prognose_data)
             st.subheader("🔮 Prognose für die nächsten 12 Monate")
             st.dataframe(prognose_df)
-
 else:
     st.error("❌ Keine Portfolio-Datei gefunden. Bitte `portfolio.csv` ins Repo legen.")
